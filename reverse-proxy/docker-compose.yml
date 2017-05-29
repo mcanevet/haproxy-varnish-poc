@@ -1,0 +1,33 @@
+version: '2'
+services:
+  haproxy:
+    image: rancher/lb-service-haproxy:v0.6.4
+    ports:
+    - 81:81/tcp
+    - 82:82/tcp
+    - 80:80/tcp
+    - 8008:8008/tcp
+    expose:
+    - 8080:8080/tcp
+    - 8081:8081/tcp
+    - 8082:8082/tcp
+    labels:
+      #io.rancher.sidekicks: varnish
+      io.rancher.container.agent.role: environmentAdmin
+      io.rancher.container.create_agent: 'true'
+  varnish:
+    image: camptocamp/varnish:latest
+    #network_mode: container:haproxy
+    expose:
+    - 6081:6081/tcp
+    command:
+    - varnishd
+    - -F
+    - -n
+    - varnishd
+    - -s
+    - file,/varnish_storage.bin,10G
+    - -a
+    - :6081
+    - -b
+    - haproxy:8080

@@ -1,0 +1,7 @@
+version: '2'
+services:
+  entrypoint:
+    image: tutum/hello-world
+    labels:
+      io.rancher.container.pull_image: always
+      line: ${line}

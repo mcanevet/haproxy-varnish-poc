@@ -1,0 +1,90 @@
+version: '2'
+services:
+  varnish:
+    scale: 1
+    start_on_create: true
+  haproxy:
+    scale: 1
+    start_on_create: true
+    lb_config:
+      certs: []
+      config: |-
+        frontend 8080
+        mode http
+        use_backend 81_ if { srv_is_up(8081_/semaphore) }
+        use_backend 82_ if { srv_is_up(8082_/semaphore) }
+  
+        backend 81_
+        mode http
+        option httpchk HEAD / HTTP/1.0
+        server $$IP check
+
+        backend 82_
+        mode http
+        option httpchk HEAD / HTTP/1.0
+        server $$IP check
+
+        backend 8080_
+        mode http
+        option httpchk HEAD / HTTP/1.0
+        server $$IP check
+
+        backend 8081_
+        mode http
+        option httpchk GET "/reverse-proxy-stack-poc/DANGER-ZONE/mode.txt" "HTTP/1.0\r\nHost:\ s3-eu-west-1.amazonaws.com"
+        http-check expect rstring ^blue$$
+        #default-server inter 5000 rise 2 fall 4 init-addr none
+        server semaphore "s3-eu-west-1.amazonaws.com:80" check
+
+        backend 8082_
+        mode http
+        option httpchk GET "/reverse-proxy-stack-poc/DANGER-ZONE/mode.txt" "HTTP/1.0\r\nHost:\ s3-eu-west-1.amazonaws.com"
+        http-check expect rstring ^green$$
+        #default-server inter 5000 rise 2 fall 4 init-addr none
+        server semaphore "s3-eu-west-1.amazonaws.com:80" check
+
+        listen 8008
+        bind *:8008
+        mode http
+        stats enable
+        stats uri /stats
+      port_rules:
+      - priority: 1
+        protocol: http
+        service: varnish
+        source_port: 80
+        target_port: 6081
+      - priority: 2
+        protocol: http
+        selector: line=blue
+        source_port: 8080
+        target_port: 80
+      - priority: 3
+        protocol: http
+        selector: line=blue
+        source_port: 81
+        target_port: 80
+      - priority: 4
+        protocol: http
+        selector: line=green
+        source_port: 82
+        target_port: 80
+      - priority: 5
+        protocol: http
+        selector: line=blue
+        source_port: 8081
+        target_port: 80
+      - priority: 6
+        protocol: http
+        selector: line=green
+        source_port: 8082
+        target_port: 80
+    health_check:
+      healthy_threshold: 2
+      response_timeout: 2000
+      port: 42
+      unhealthy_threshold: 3
+      initializing_timeout: 60000
+      interval: 2000
+      strategy: recreate
+      reinitializing_timeout: 60000
